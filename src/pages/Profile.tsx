@@ -92,7 +92,7 @@ function Profile() {
   const firstMealDate = useMemo(() => {
     if (!member) return null;
     const memberMeals = meals
-      .filter((m) => m.responsibleId === member.id && m.done && m.doneAt)
+      .filter((m) => m.responsibleIds.includes(member.id) && m.done && m.doneAt)
       .sort((a, b) => (a.doneAt! > b.doneAt! ? 1 : -1));
     if (memberMeals.length === 0) return null;
     return new Date(memberMeals[0].doneAt!);

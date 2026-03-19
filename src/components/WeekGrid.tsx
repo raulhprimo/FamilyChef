@@ -10,7 +10,7 @@ import {
   formatDayHeader,
   getWeekLabel,
 } from '../utils/dates';
-import type { MealType } from '../types';
+import type { Meal, MealType } from '../types';
 import MealCell from './MealCell';
 
 const MEAL_TYPES: { type: MealType; label: string }[] = [
@@ -20,9 +20,12 @@ const MEAL_TYPES: { type: MealType; label: string }[] = [
 
 type WeekGridProps = {
   onAddMeal: (date: string, type: MealType) => void;
+  onEditMeal: (meal: Meal) => void;
+  onAddPhoto: (meal: Meal) => void;
+  onToggleDone: (id: string) => void;
 };
 
-function WeekGrid({ onAddMeal }: WeekGridProps) {
+function WeekGrid({ onAddMeal, onEditMeal, onAddPhoto, onToggleDone }: WeekGridProps) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [mobileType, setMobileType] = useState<MealType>('lunch');
 
@@ -39,7 +42,6 @@ function WeekGrid({ onAddMeal }: WeekGridProps) {
   const weekId = getWeekId(referenceDate);
 
   const meals = useMealsStore((s) => s.meals);
-  const toggleDone = useMealsStore((s) => s.toggleDone);
 
   const weekMeals = useMemo(
     () => meals.filter((m) => m.weekId === weekId),
@@ -85,9 +87,8 @@ function WeekGrid({ onAddMeal }: WeekGridProps) {
         </button>
       </div>
 
-      {/* ===== MOBILE: vertical list + meal type toggle ===== */}
+      {/* ===== MOBILE ===== */}
       <div className="flex flex-col gap-3 md:hidden">
-        {/* Meal type toggle */}
         <div className="flex gap-1 rounded-xl bg-white p-1 shadow-sm">
           {MEAL_TYPES.map(({ type, label }) => (
             <button
@@ -104,7 +105,6 @@ function WeekGrid({ onAddMeal }: WeekGridProps) {
           ))}
         </div>
 
-        {/* Vertical day list */}
         <div className="flex flex-col gap-2">
           {weekDays.map((day) => {
             const iso = formatDateISO(day);
@@ -118,7 +118,6 @@ function WeekGrid({ onAddMeal }: WeekGridProps) {
                   isToday ? 'border-accent/30 ring-1 ring-accent/20' : 'border-gray-100'
                 }`}
               >
-                {/* Day label */}
                 <div
                   className={`flex w-14 shrink-0 flex-col items-center rounded-xl py-1.5 ${
                     isToday ? 'bg-accent/10' : 'bg-gray-50'
@@ -140,13 +139,14 @@ function WeekGrid({ onAddMeal }: WeekGridProps) {
                   </span>
                 </div>
 
-                {/* Meal cell */}
                 <div className="flex-1">
                   <MealCell
                     meal={meal}
                     mealType={mobileType}
                     onAdd={() => onAddMeal(iso, mobileType)}
-                    onToggleDone={toggleDone}
+                    onToggleDone={onToggleDone}
+                    onEdit={onEditMeal}
+                    onAddPhoto={onAddPhoto}
                   />
                 </div>
               </div>
@@ -155,11 +155,10 @@ function WeekGrid({ onAddMeal }: WeekGridProps) {
         </div>
       </div>
 
-      {/* ===== DESKTOP: horizontal grid (unchanged) ===== */}
+      {/* ===== DESKTOP ===== */}
       <div className="hidden md:block">
         <div className="overflow-x-auto pb-2">
           <div className="grid min-w-[700px] grid-cols-[auto_repeat(7,1fr)] gap-x-1.5 gap-y-1">
-            {/* Header: canto vazio + dias */}
             <div />
             {weekDays.map((day) => {
               const iso = formatDateISO(day);
@@ -168,9 +167,7 @@ function WeekGrid({ onAddMeal }: WeekGridProps) {
                 <div
                   key={iso}
                   className={`rounded-xl px-2 py-2 text-center text-xs font-semibold ${
-                    isToday
-                      ? 'bg-accent/10 text-accent'
-                      : 'text-text-muted'
+                    isToday ? 'bg-accent/10 text-accent' : 'text-text-muted'
                   }`}
                 >
                   {formatDayHeader(day)}
@@ -178,7 +175,6 @@ function WeekGrid({ onAddMeal }: WeekGridProps) {
               );
             })}
 
-            {/* Linhas: Almoço + Janta */}
             {MEAL_TYPES.map(({ type, label }) => (
               <Fragment key={type}>
                 <div className="flex items-center pr-2 text-xs font-semibold text-text-muted">
@@ -197,7 +193,9 @@ function WeekGrid({ onAddMeal }: WeekGridProps) {
                         meal={meal}
                         mealType={type}
                         onAdd={() => onAddMeal(iso, type)}
-                        onToggleDone={toggleDone}
+                        onToggleDone={onToggleDone}
+                        onEdit={onEditMeal}
+                        onAddPhoto={onAddPhoto}
                       />
                     </div>
                   );

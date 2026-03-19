@@ -6,9 +6,10 @@ export type Meal = {
   date: string;           // ISO: "2026-03-18"
   type: MealType;
   dish: string;           // nome do prato
-  responsibleId: string;  // 'elaine' | 'felipe' | 'leticia'
+  responsibleIds: string[]; // ['elaine', 'felipe'] — pode ser mais de um
   done: boolean;
   doneAt?: string;        // ISO timestamp
+  imageUrl?: string;      // URL da foto no Supabase Storage
 };
 
 export type WeekPlan = {

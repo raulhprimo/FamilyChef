@@ -4,6 +4,7 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { Cancel01Icon, Delete02Icon } from '@hugeicons/core-free-icons';
 import { FAMILY_MEMBERS } from '../constants/members';
 import { useMealsStore } from '../store/mealsStore';
+import { useStatsStore } from '../store/statsStore';
 import { getWeekId } from '../utils/dates';
 import type { Meal, MealType } from '../types';
 
@@ -19,23 +20,22 @@ function MealModal({ isOpen, onClose, date, mealType, existingMeal }: MealModalP
   const addMeal = useMealsStore((s) => s.addMeal);
   const updateMeal = useMealsStore((s) => s.updateMeal);
   const deleteMeal = useMealsStore((s) => s.deleteMeal);
+  const meals = useMealsStore((s) => s.meals);
+  const recordMealDeleted = useStatsStore((s) => s.recordMealDeleted);
 
   const [dish, setDish] = useState('');
-  const [responsibleId, setResponsibleId] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [visible, setVisible] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       setDish(existingMeal?.dish ?? '');
-      setResponsibleId(existingMeal?.responsibleId ?? '');
+      setSelectedIds(existingMeal?.responsibleIds ?? []);
       setConfirmDelete(false);
-      // Trigger enter animation
       requestAnimationFrame(() => setVisible(true));
-      // Focus input after animation
       setTimeout(() => inputRef.current?.focus(), 150);
     } else {
       setVisible(false);
@@ -46,7 +46,16 @@ function MealModal({ isOpen, onClose, date, mealType, existingMeal }: MealModalP
 
   const title = mealType === 'lunch' ? 'Almoço' : 'Janta';
   const isEditing = !!existingMeal;
-  const canSave = dish.trim().length > 0 && responsibleId.length > 0;
+  // Pode salvar só com membros selecionados (prato é opcional)
+  const canSave = selectedIds.length > 0;
+
+  function toggleMember(memberId: string) {
+    setSelectedIds((prev) =>
+      prev.includes(memberId)
+        ? prev.filter((id) => id !== memberId)
+        : [...prev, memberId],
+    );
+  }
 
   function handleSave() {
     if (!canSave) return;
@@ -54,14 +63,14 @@ function MealModal({ isOpen, onClose, date, mealType, existingMeal }: MealModalP
     const weekId = getWeekId(parsedDate);
 
     if (isEditing) {
-      updateMeal(existingMeal.id, { dish: dish.trim(), responsibleId });
+      updateMeal(existingMeal.id, { dish: dish.trim(), responsibleIds: selectedIds });
     } else {
       addMeal({
         weekId,
         date,
         type: mealType,
         dish: dish.trim(),
-        responsibleId,
+        responsibleIds: selectedIds,
         done: false,
       });
     }
@@ -74,6 +83,11 @@ function MealModal({ isOpen, onClose, date, mealType, existingMeal }: MealModalP
       setConfirmDelete(true);
       return;
     }
+
+    // Reverter pontos se a refeição estava concluída
+    const remainingMeals = meals.filter((m) => m.id !== existingMeal.id);
+    recordMealDeleted(existingMeal, remainingMeals);
+
     deleteMeal(existingMeal.id);
     handleClose();
   }
@@ -118,33 +132,19 @@ function MealModal({ isOpen, onClose, date, mealType, existingMeal }: MealModalP
           </button>
         </div>
 
-        {/* Campo do prato */}
+        {/* Seleção de responsáveis (multi-select) — primeiro */}
         <div className="mb-5">
-          <label className="mb-1.5 block text-sm font-semibold text-text-muted">
-            Nome do prato
-          </label>
-          <input
-            ref={inputRef}
-            type="text"
-            value={dish}
-            onChange={(e) => setDish(e.target.value)}
-            placeholder="Ex: Frango grelhado com arroz"
-            className="w-full rounded-xl border border-gray-200 bg-bg-primary px-4 py-3 text-sm text-text-primary outline-none transition-colors placeholder:text-gray-400 focus:border-accent focus:ring-1 focus:ring-accent/30"
-          />
-        </div>
-
-        {/* Seleção de responsável */}
-        <div className="mb-6">
           <label className="mb-2 block text-sm font-semibold text-text-muted">
             Quem vai preparar?
+            <span className="ml-1 font-normal text-text-muted">(pode selecionar mais de um)</span>
           </label>
           <div className="flex flex-wrap gap-2">
             {FAMILY_MEMBERS.map((member) => {
-              const selected = responsibleId === member.id;
+              const selected = selectedIds.includes(member.id);
               return (
                 <button
                   key={member.id}
-                  onClick={() => setResponsibleId(member.id)}
+                  onClick={() => toggleMember(member.id)}
                   className={`flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-semibold transition-all ${
                     selected
                       ? 'shadow-sm'
@@ -163,6 +163,22 @@ function MealModal({ isOpen, onClose, date, mealType, existingMeal }: MealModalP
               );
             })}
           </div>
+        </div>
+
+        {/* Campo do prato (opcional) */}
+        <div className="mb-6">
+          <label className="mb-1.5 block text-sm font-semibold text-text-muted">
+            Nome do prato
+            <span className="ml-1 font-normal text-text-muted">(opcional — pode preencher depois)</span>
+          </label>
+          <input
+            ref={inputRef}
+            type="text"
+            value={dish}
+            onChange={(e) => setDish(e.target.value)}
+            placeholder="Ex: Frango grelhado com arroz"
+            className="w-full rounded-xl border border-gray-200 bg-bg-primary px-4 py-3 text-sm text-text-primary outline-none transition-colors placeholder:text-gray-400 focus:border-accent focus:ring-1 focus:ring-accent/30"
+          />
         </div>
 
         {/* Ações */}

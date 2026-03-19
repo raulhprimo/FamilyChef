@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Emoji } from 'react-apple-emojis';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { Home01Icon, RankingIcon, UserCircleIcon, GridIcon } from '@hugeicons/core-free-icons';
+import { Home01Icon, RankingIcon, UserCircleIcon, Image01Icon } from '@hugeicons/core-free-icons';
 import { useActiveMember } from '../hooks/useActiveMember';
 import { getWeekId } from '../utils/dates';
 import Toast from './Toast';
@@ -11,14 +11,13 @@ type NavItem = {
   path: string;
   label: string;
   icon: typeof Home01Icon;
-  disabled?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
   { path: '/home', label: 'Cardápio', icon: Home01Icon },
   { path: '/ranking', label: 'Ranking', icon: RankingIcon },
   { path: '/profile', label: 'Perfil', icon: UserCircleIcon },
-  { path: '', label: 'Em breve', icon: GridIcon, disabled: true },
+  { path: '/memories', label: 'Memórias', icon: Image01Icon },
 ];
 
 function Layout() {
@@ -48,17 +47,6 @@ function Layout() {
         {/* Sidebar nav */}
         <nav className="flex flex-1 flex-col gap-1 px-3 pt-2">
           {NAV_ITEMS.map((item) => {
-            if (item.disabled) {
-              return (
-                <div
-                  key={item.label}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-300"
-                >
-                  <HugeiconsIcon icon={item.icon} size={20} color="#D1D5DB" aria-hidden="true" />
-                  {item.label}
-                </div>
-              );
-            }
             const active = location.pathname === item.path;
             return (
               <button
@@ -143,17 +131,6 @@ function Layout() {
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-100 bg-white/95 backdrop-blur-sm lg:hidden">
         <div className="mx-auto flex max-w-md">
           {NAV_ITEMS.map((item) => {
-            if (item.disabled) {
-              return (
-                <div
-                  key={item.label}
-                  className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-semibold text-gray-300"
-                >
-                  <HugeiconsIcon icon={item.icon} size={22} color="#D1D5DB" aria-hidden="true" />
-                  {item.label}
-                </div>
-              );
-            }
             const active = location.pathname === item.path;
             return (
               <button
