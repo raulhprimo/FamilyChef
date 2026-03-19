@@ -1,0 +1,7 @@
+export const POINTS = {
+  MEAL_DONE: 10,
+  MEAL_PLANNED: 2,
+  STREAK_3_DAYS: 15,
+  STREAK_7_DAYS: 50,
+  BADGE_CHEF_DA_SEMANA: 30,
+} as const;
