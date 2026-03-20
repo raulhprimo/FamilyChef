@@ -59,6 +59,20 @@ export default {
           '50%': { transform: 'rotate(10deg)' },
           '60%, 100%': { transform: 'rotate(0deg)' },
         },
+        'task-done': {
+          '0%': { opacity: '1', transform: 'translateX(0)', maxHeight: '120px' },
+          '60%': { opacity: '0.4', transform: 'translateX(-30px)' },
+          '100%': { opacity: '0', transform: 'translateX(-60px)', maxHeight: '0px', padding: '0', margin: '0', border: '0' },
+        },
+        'check-fill': {
+          '0%': { transform: 'scale(0.5)', opacity: '0' },
+          '50%': { transform: 'scale(1.3)' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        'streak-pulse': {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.1)' },
+        },
       },
       animation: {
         'slide-up': 'slide-up 0.4s ease-out both',
@@ -68,6 +82,9 @@ export default {
         'shimmer': 'shimmer 1.5s infinite linear',
         'shake': 'shake 0.4s ease-in-out',
         'wave': 'wave 1.8s ease-in-out infinite',
+        'task-done': 'task-done 0.8s ease-in-out forwards',
+        'check-fill': 'check-fill 0.3s ease-out',
+        'streak-pulse': 'streak-pulse 2s ease-in-out infinite',
       },
     },
   },
