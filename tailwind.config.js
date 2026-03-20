@@ -73,6 +73,10 @@ export default {
           '0%, 100%': { transform: 'scale(1)' },
           '50%': { transform: 'scale(1.1)' },
         },
+        'pulse-ring': {
+          '0%': { transform: 'scale(1)', opacity: '0.8' },
+          '100%': { transform: 'scale(2.2)', opacity: '0' },
+        },
       },
       animation: {
         'slide-up': 'slide-up 0.4s ease-out both',
@@ -85,6 +89,7 @@ export default {
         'task-done': 'task-done 0.8s ease-in-out forwards',
         'check-fill': 'check-fill 0.3s ease-out',
         'streak-pulse': 'streak-pulse 2s ease-in-out infinite',
+        'pulse-ring': 'pulse-ring 1.2s ease-out infinite',
       },
     },
   },

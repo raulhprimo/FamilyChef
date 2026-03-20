@@ -26,12 +26,14 @@ import FinDebts from './modules/fin/pages/FinDebts';
 import FinGoals from './modules/fin/pages/FinGoals';
 import FinBudget from './modules/fin/pages/FinBudget';
 import FinRanking from './modules/fin/pages/FinRanking';
+import VoiceButton from './core/components/VoiceButton/VoiceButton';
 
 function App() {
   return (
     <EmojiProvider data={emojiData}>
       <AppInitializer>
         <BrowserRouter>
+          <VoiceButton />
           <Routes>
             {/* Auth */}
             <Route path="/" element={<ProfileSelect />} />
