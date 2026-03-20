@@ -6,7 +6,7 @@ import { LockIcon } from '@hugeicons/core-free-icons';
 import { FAMILY_MEMBERS } from '../core/constants/members';
 import { supabase } from '../lib/supabase';
 
-const STORAGE_KEY = 'familychef_active_member';
+const STORAGE_KEY = '4family_active_member';
 
 function ProfileSelect() {
   const navigate = useNavigate();

@@ -1,29 +1,30 @@
 import { create } from 'zustand';
+import { supabase } from '../../../lib/supabase';
 import type { MemberId } from '../../../core/constants/members';
 import type { Expense, Debt, ExpenseCategory, MonthSummary } from '../types';
 import { FIN_MEMBER_IDS } from '../types';
-
-const STORAGE_KEY = '4family_fin_expenses';
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function load(): Expense[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function save(expenses: Expense[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+function rowToExpense(row: Record<string, unknown>): Expense {
+  return {
+    id: row.id as string,
+    description: row.description as string,
+    amount: row.amount as number,
+    category: row.category as ExpenseCategory,
+    paidBy: row.paid_by as MemberId[],
+    splitBetween: row.split_between as MemberId[],
+    customSplit: (row.custom_split as Partial<Record<MemberId, number>>) ?? undefined,
+    date: row.date as string,
+    createdAt: row.created_at as string,
+    isSettlement: row.is_settlement as boolean | undefined,
+  };
 }
 
 function calculateDebtsForMonth(expenses: Expense[], month: string): Debt[] {
   const monthExpenses = expenses.filter((e) => e.date.startsWith(month));
-
-  // Net balance per member: positive = has to receive, negative = owes
   const balance: Record<string, number> = {};
   for (const id of FIN_MEMBER_IDS) balance[id] = 0;
 
@@ -32,20 +33,17 @@ function calculateDebtsForMonth(expenses: Expense[], month: string): Debt[] {
     const splitCount = splitMembers.length;
 
     if (exp.customSplit) {
-      // Custom split
       for (const memberId of splitMembers) {
         const owes = exp.customSplit[memberId as MemberId] ?? Math.round(exp.amount / splitCount);
         balance[memberId] = (balance[memberId] ?? 0) - owes;
       }
     } else {
-      // Equal split
       const perPerson = Math.round(exp.amount / splitCount);
       for (const memberId of splitMembers) {
         balance[memberId] = (balance[memberId] ?? 0) - perPerson;
       }
     }
 
-    // Credit payers
     const payerCount = exp.paidBy.length;
     const perPayer = Math.round(exp.amount / payerCount);
     for (const payer of exp.paidBy) {
@@ -53,7 +51,6 @@ function calculateDebtsForMonth(expenses: Expense[], month: string): Debt[] {
     }
   }
 
-  // Simplify debts: pair debtors with creditors
   const creditors: { id: string; amount: number }[] = [];
   const debtors: { id: string; amount: number }[] = [];
 
@@ -66,17 +63,12 @@ function calculateDebtsForMonth(expenses: Expense[], month: string): Debt[] {
   debtors.sort((a, b) => b.amount - a.amount);
 
   const debts: Debt[] = [];
-  let ci = 0;
-  let di = 0;
+  let ci = 0, di = 0;
 
   while (ci < creditors.length && di < debtors.length) {
     const transfer = Math.min(creditors[ci].amount, debtors[di].amount);
     if (transfer > 0) {
-      debts.push({
-        from: debtors[di].id as MemberId,
-        to: creditors[ci].id as MemberId,
-        amount: transfer,
-      });
+      debts.push({ from: debtors[di].id as MemberId, to: creditors[ci].id as MemberId, amount: transfer });
     }
     creditors[ci].amount -= transfer;
     debtors[di].amount -= transfer;
@@ -89,43 +81,77 @@ function calculateDebtsForMonth(expenses: Expense[], month: string): Debt[] {
 
 type ExpensesState = {
   expenses: Expense[];
-  addExpense: (data: Omit<Expense, 'id' | 'createdAt'>) => void;
-  updateExpense: (id: string, data: Partial<Expense>) => void;
-  deleteExpense: (id: string) => void;
+  loading: boolean;
+  fetchExpenses: () => Promise<void>;
+  addExpense: (data: Omit<Expense, 'id' | 'createdAt'>) => Promise<void>;
+  updateExpense: (id: string, data: Partial<Expense>) => Promise<void>;
+  deleteExpense: (id: string) => Promise<void>;
   getExpensesByMonth: (month: string) => Expense[];
   calculateDebts: (month: string) => Debt[];
   getMonthSummary: (month: string) => MonthSummary;
 };
 
 export const useExpensesStore = create<ExpensesState>((set, get) => ({
-  expenses: load(),
+  expenses: [],
+  loading: true,
 
-  addExpense: (data) => {
-    const expense: Expense = { ...data, id: generateId(), createdAt: new Date().toISOString() };
-    const updated = [...get().expenses, expense];
-    set({ expenses: updated });
-    save(updated);
+  fetchExpenses: async () => {
+    const { data, error } = await supabase
+      .from('fin_expenses')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (!error && data) {
+      set({ expenses: data.map(rowToExpense), loading: false });
+    } else {
+      set({ loading: false });
+    }
   },
 
-  updateExpense: (id, data) => {
-    const updated = get().expenses.map((e) => (e.id === id ? { ...e, ...data } : e));
-    set({ expenses: updated });
-    save(updated);
+  addExpense: async (data) => {
+    const id = generateId();
+    const expense: Expense = { ...data, id, createdAt: new Date().toISOString() };
+    set((s) => ({ expenses: [...s.expenses, expense] }));
+
+    await supabase.from('fin_expenses').insert({
+      id,
+      description: data.description,
+      amount: data.amount,
+      category: data.category,
+      paid_by: data.paidBy,
+      split_between: data.splitBetween,
+      custom_split: data.customSplit ?? null,
+      date: data.date,
+      is_settlement: data.isSettlement ?? false,
+    });
   },
 
-  deleteExpense: (id) => {
-    const updated = get().expenses.filter((e) => e.id !== id);
-    set({ expenses: updated });
-    save(updated);
+  updateExpense: async (id, data) => {
+    set((s) => ({
+      expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...data } : e)),
+    }));
+
+    const update: Record<string, unknown> = {};
+    if (data.description !== undefined) update.description = data.description;
+    if (data.amount !== undefined) update.amount = data.amount;
+    if (data.category !== undefined) update.category = data.category;
+    if (data.paidBy !== undefined) update.paid_by = data.paidBy;
+    if (data.splitBetween !== undefined) update.split_between = data.splitBetween;
+    if (data.date !== undefined) update.date = data.date;
+
+    await supabase.from('fin_expenses').update(update).eq('id', id);
+  },
+
+  deleteExpense: async (id) => {
+    set((s) => ({ expenses: s.expenses.filter((e) => e.id !== id) }));
+    await supabase.from('fin_expenses').delete().eq('id', id);
   },
 
   getExpensesByMonth: (month) => {
     return get().expenses.filter((e) => e.date.startsWith(month) && !e.isSettlement);
   },
 
-  calculateDebts: (month) => {
-    return calculateDebtsForMonth(get().expenses, month);
-  },
+  calculateDebts: (month) => calculateDebtsForMonth(get().expenses, month),
 
   getMonthSummary: (month) => {
     const expenses = get().expenses.filter((e) => e.date.startsWith(month) && !e.isSettlement);
@@ -143,12 +169,6 @@ export const useExpensesStore = create<ExpensesState>((set, get) => ({
       }
     }
 
-    return {
-      month,
-      totalExpenses,
-      byCategory,
-      byMember,
-      debts: calculateDebtsForMonth(get().expenses, month),
-    };
+    return { month, totalExpenses, byCategory, byMember, debts: calculateDebtsForMonth(get().expenses, month) };
   },
 }));

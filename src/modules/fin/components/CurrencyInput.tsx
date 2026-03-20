@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { formatCurrency } from '../types';
 
 type CurrencyInputProps = {
@@ -10,21 +10,15 @@ type CurrencyInputProps = {
 };
 
 /**
- * Input monetário que aceita valores em reais (ex: "49,90" ou "49.90")
- * e converte internamente para centavos.
+ * Input monetário estilo ATM brasileiro.
+ * Digita-se apenas números, os dígitos preenchem da direita para a esquerda:
+ *   "5"    → R$ 0,05
+ *   "50"   → R$ 0,50
+ *   "4990" → R$ 49,90
+ * Sem ambiguidade — o valor é sempre em centavos internamente.
  */
-function CurrencyInput({ value, onChange, placeholder = 'R$ 0,00', className, autoFocus }: CurrencyInputProps) {
-  const [display, setDisplay] = useState('');
+function CurrencyInput({ value, onChange, autoFocus }: CurrencyInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Sync display when value changes externally
-  useEffect(() => {
-    if (value === 0) {
-      setDisplay('');
-    } else {
-      setDisplay((value / 100).toFixed(2).replace('.', ','));
-    }
-  }, [value]);
 
   useEffect(() => {
     if (autoFocus) {
@@ -33,23 +27,23 @@ function CurrencyInput({ value, onChange, placeholder = 'R$ 0,00', className, au
   }, [autoFocus]);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const raw = e.target.value;
+    // Keep only digits
+    const digits = e.target.value.replace(/\D/g, '');
+    const cents = Number(digits);
+    onChange(cents);
+  }
 
-    // Allow only digits, comma, dot
-    const cleaned = raw.replace(/[^\d,\.]/g, '');
-    setDisplay(cleaned);
-
-    // Convert to cents
-    // Replace comma with dot for parsing
-    const normalized = cleaned.replace(',', '.');
-    const parsed = parseFloat(normalized);
-
-    if (isNaN(parsed)) {
-      onChange(0);
-    } else {
-      onChange(Math.round(parsed * 100));
+  function handleKeyDown(e: React.KeyboardEvent) {
+    // Allow backspace to remove last digit
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      const newValue = Math.floor(value / 10);
+      onChange(newValue);
     }
   }
+
+  // Hidden value for the input (just digits for easy editing)
+  const rawDigits = value === 0 ? '' : String(value);
 
   return (
     <div>
@@ -61,14 +55,15 @@ function CurrencyInput({ value, onChange, placeholder = 'R$ 0,00', className, au
       <input
         ref={inputRef}
         type="text"
-        inputMode="decimal"
-        value={display}
+        inputMode="numeric"
+        value={rawDigits}
         onChange={handleChange}
-        placeholder={placeholder}
-        className={className ?? 'w-full rounded-xl border border-gray-200 bg-bg-primary px-4 py-3 text-center text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30'}
+        onKeyDown={handleKeyDown}
+        placeholder="0"
+        className="w-full rounded-xl border border-gray-200 bg-bg-primary px-4 py-3 text-center text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30"
       />
       <p className="mt-1 text-center text-[11px] text-text-muted">
-        Digite em reais (ex: 49,90) ou centavos (ex: 4990)
+        Digite o valor: 4990 = R$ 49,90
       </p>
     </div>
   );

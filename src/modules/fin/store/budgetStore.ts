@@ -1,18 +1,6 @@
 import { create } from 'zustand';
+import { supabase } from '../../../lib/supabase';
 import type { Budget, ExpenseCategory } from '../types';
-
-const STORAGE_KEY = '4family_fin_budget';
-
-function load(): Budget[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function save(budgets: Budget[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(budgets));
-}
 
 type BudgetStatus = {
   category: ExpenseCategory;
@@ -24,25 +12,47 @@ type BudgetStatus = {
 
 type BudgetState = {
   budgets: Budget[];
-  setBudget: (category: ExpenseCategory, monthlyLimit: number, month: string) => void;
-  removeBudget: (category: ExpenseCategory, month: string) => void;
+  loading: boolean;
+  fetchBudgets: () => Promise<void>;
+  setBudget: (category: ExpenseCategory, monthlyLimit: number, month: string) => Promise<void>;
+  removeBudget: (category: ExpenseCategory, month: string) => Promise<void>;
   getBudgetStatus: (month: string, spentByCategory: Record<ExpenseCategory, number>) => BudgetStatus[];
 };
 
 export const useBudgetStore = create<BudgetState>((set, get) => ({
-  budgets: load(),
+  budgets: [],
+  loading: true,
 
-  setBudget: (category, monthlyLimit, month) => {
+  fetchBudgets: async () => {
+    const { data, error } = await supabase.from('fin_budgets').select('*');
+    if (!error && data) {
+      const budgets: Budget[] = data.map((row) => ({
+        category: row.category as ExpenseCategory,
+        monthlyLimit: row.monthly_limit as number,
+        month: row.month as string,
+      }));
+      set({ budgets, loading: false });
+    } else {
+      set({ loading: false });
+    }
+  },
+
+  setBudget: async (category, monthlyLimit, month) => {
     const budgets = get().budgets.filter((b) => !(b.category === category && b.month === month));
     budgets.push({ category, monthlyLimit, month });
     set({ budgets });
-    save(budgets);
+
+    await supabase.from('fin_budgets').upsert({
+      category,
+      monthly_limit: monthlyLimit,
+      month,
+    });
   },
 
-  removeBudget: (category, month) => {
+  removeBudget: async (category, month) => {
     const budgets = get().budgets.filter((b) => !(b.category === category && b.month === month));
     set({ budgets });
-    save(budgets);
+    await supabase.from('fin_budgets').delete().eq('category', category).eq('month', month);
   },
 
   getBudgetStatus: (month, spentByCategory) => {

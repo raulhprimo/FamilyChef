@@ -1,6 +1,13 @@
 import { useEffect, useState, useRef } from 'react';
 import { useMealsStore } from '../../modules/chef/store/mealsStore';
 import { useStatsStore } from '../../modules/chef/store/statsStore';
+import { useRecurringStore } from '../../modules/home/store/recurringStore';
+import { useTasksStore } from '../../modules/home/store/tasksStore';
+import { useHomeStatsStore } from '../../modules/home/store/homeStatsStore';
+import { useExpensesStore } from '../../modules/fin/store/expensesStore';
+import { useGoalsStore } from '../../modules/fin/store/goalsStore';
+import { useBudgetStore } from '../../modules/fin/store/budgetStore';
+import { useFinStatsStore } from '../../modules/fin/store/finStatsStore';
 import { useToastStore } from '../store/toastStore';
 import { runMigrationIfNeeded, diagnoseMigration } from '../utils/migration';
 
@@ -9,27 +16,48 @@ type AppInitializerProps = {
 };
 
 function AppInitializer({ children }: AppInitializerProps) {
+  // Chef
   const fetchMeals = useMealsStore((s) => s.fetchMeals);
-  const fetchStats = useStatsStore((s) => s.fetchStats);
+  const fetchChefStats = useStatsStore((s) => s.fetchStats);
+  // Home
+  const fetchRecurring = useRecurringStore((s) => s.fetchRecurring);
+  const fetchInstances = useTasksStore((s) => s.fetchInstances);
+  const fetchHomeStats = useHomeStatsStore((s) => s.fetchHomeStats);
+  // Fin
+  const fetchExpenses = useExpensesStore((s) => s.fetchExpenses);
+  const fetchGoals = useGoalsStore((s) => s.fetchGoals);
+  const fetchBudgets = useBudgetStore((s) => s.fetchBudgets);
+  const fetchFinStats = useFinStatsStore((s) => s.fetchFinStats);
+
   const showToast = useToastStore((s) => s.showToast);
   const [ready, setReady] = useState(false);
   const migrationRan = useRef(false);
 
   useEffect(() => {
-    // Run migration before fetching data
     if (!migrationRan.current) {
       migrationRan.current = true;
       const migrated = runMigrationIfNeeded();
       if (migrated) {
         showToast('Seus dados do FamilyChef foram migrados para o 4Family');
       }
-
-      // Diagnóstico em dev
       diagnoseMigration();
     }
 
-    Promise.all([fetchMeals(), fetchStats()]).then(() => setReady(true));
-  }, [fetchMeals, fetchStats, showToast]);
+    Promise.all([
+      // Chef
+      fetchMeals(),
+      fetchChefStats(),
+      // Home
+      fetchRecurring(),
+      fetchInstances(),
+      fetchHomeStats(),
+      // Fin
+      fetchExpenses(),
+      fetchGoals(),
+      fetchBudgets(),
+      fetchFinStats(),
+    ]).then(() => setReady(true));
+  }, [fetchMeals, fetchChefStats, fetchRecurring, fetchInstances, fetchHomeStats, fetchExpenses, fetchGoals, fetchBudgets, fetchFinStats, showToast]);
 
   if (!ready) {
     return (

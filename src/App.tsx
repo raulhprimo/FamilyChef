@@ -19,6 +19,7 @@ import HomeRanking from './modules/home/pages/Ranking';
 import Recurring from './modules/home/pages/Recurring';
 import History from './modules/home/pages/History';
 import FinLayout from './modules/fin/components/FinLayout';
+import FinGuard from './modules/fin/components/FinGuard';
 import FinHome from './modules/fin/pages/FinHome';
 import FinExpenses from './modules/fin/pages/FinExpenses';
 import FinDebts from './modules/fin/pages/FinDebts';
@@ -90,11 +91,13 @@ function App() {
               <Route path="/home-tasks/history" element={<History />} />
             </Route>
 
-            {/* FamilyFin */}
+            {/* FamilyFin (Leticia excluída) */}
             <Route
               element={
                 <ProtectedRoute>
-                  <FinLayout />
+                  <FinGuard>
+                    <FinLayout />
+                  </FinGuard>
                 </ProtectedRoute>
               }
             >

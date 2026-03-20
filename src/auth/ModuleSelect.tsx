@@ -5,11 +5,21 @@ import { UserCircleIcon, Award02Icon } from '@hugeicons/core-free-icons';
 import { MODULES } from '../core/constants/modules';
 import { setActiveModule } from '../core/hooks/useActiveModule';
 import { useActiveMember } from '../core/hooks/useActiveMember';
+import { FIN_MEMBER_IDS } from '../modules/fin/types';
 import type { ModuleId } from '../core/constants/modules';
+import type { MemberId } from '../core/constants/members';
 
 function ModuleSelect() {
   const navigate = useNavigate();
   const member = useActiveMember();
+
+  // Leticia não participa do Fin
+  const visibleModules = MODULES.filter((mod) => {
+    if (mod.id === 'fin' && member && !FIN_MEMBER_IDS.includes(member.id as MemberId)) {
+      return false;
+    }
+    return true;
+  });
 
   function handleSelect(moduleId: ModuleId, route: string) {
     setActiveModule(moduleId);
@@ -49,7 +59,7 @@ function ModuleSelect() {
           </button>
         </div>
 
-        {MODULES.map((mod) => (
+        {visibleModules.map((mod) => (
           <button
             key={mod.id}
             onClick={() => mod.enabled && handleSelect(mod.id as ModuleId, mod.route)}

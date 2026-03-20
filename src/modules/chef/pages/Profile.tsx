@@ -111,7 +111,7 @@ function ChefProfile() {
     : 'hoje';
 
   function handleSwitchProfile() {
-    localStorage.removeItem('familychef_active_member');
+    localStorage.removeItem('4family_active_member');
     navigate('/');
   }
 

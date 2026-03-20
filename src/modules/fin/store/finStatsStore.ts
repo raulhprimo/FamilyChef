@@ -1,8 +1,7 @@
 import { create } from 'zustand';
+import { supabase } from '../../../lib/supabase';
 import { getWeekId } from '../../../core/utils/dates';
 import type { MemberId } from '../../../core/constants/members';
-
-const STORAGE_KEY = '4family_fin_stats';
 
 type FinStats = {
   memberId: string;
@@ -15,15 +14,23 @@ function createEmpty(memberId: string): FinStats {
   return { memberId, totalPoints: 0, weeklyPoints: {}, badges: [] };
 }
 
-function load(): Record<string, FinStats> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
+function rowToStats(row: Record<string, unknown>): FinStats {
+  return {
+    memberId: row.member_id as string,
+    totalPoints: row.total_points as number,
+    badges: row.badges as string[],
+    weeklyPoints: row.weekly_points as Record<string, number>,
+  };
 }
 
-function save(stats: Record<string, FinStats>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+async function upsertStats(ms: FinStats) {
+  await supabase.from('fin_stats').upsert({
+    member_id: ms.memberId,
+    total_points: ms.totalPoints,
+    badges: ms.badges,
+    weekly_points: ms.weeklyPoints,
+    updated_at: new Date().toISOString(),
+  });
 }
 
 export const FIN_BADGES = [
@@ -35,6 +42,8 @@ export const FIN_BADGES = [
 
 type FinStatsState = {
   stats: Record<string, FinStats>;
+  loading: boolean;
+  fetchFinStats: () => Promise<void>;
   addPoints: (memberId: MemberId, points: number) => void;
   getMemberPoints: (memberId: MemberId) => number;
   getMemberStats: (memberId: MemberId) => FinStats;
@@ -42,7 +51,22 @@ type FinStatsState = {
 };
 
 export const useFinStatsStore = create<FinStatsState>((set, get) => ({
-  stats: load(),
+  stats: {},
+  loading: true,
+
+  fetchFinStats: async () => {
+    const { data, error } = await supabase.from('fin_stats').select('*');
+    if (!error && data) {
+      const stats: Record<string, FinStats> = {};
+      for (const row of data) {
+        const s = rowToStats(row);
+        stats[s.memberId] = s;
+      }
+      set({ stats, loading: false });
+    } else {
+      set({ loading: false });
+    }
+  },
 
   addPoints: (memberId, points) => {
     const stats = { ...get().stats };
@@ -54,7 +78,6 @@ export const useFinStatsStore = create<FinStatsState>((set, get) => ({
     wp[weekId] = (wp[weekId] ?? 0) + points;
     ms.weeklyPoints = wp;
 
-    // Auto-badges
     const badges = [...(ms.badges ?? [])];
     if (!badges.includes('primeiro_gasto')) badges.push('primeiro_gasto');
     if (ms.totalPoints >= 100 && !badges.includes('cem_pontos')) badges.push('cem_pontos');
@@ -62,16 +85,12 @@ export const useFinStatsStore = create<FinStatsState>((set, get) => ({
 
     stats[memberId] = ms;
     set({ stats });
-    save(stats);
+    upsertStats(ms);
   },
 
-  getMemberPoints: (memberId) => {
-    return get().stats[memberId]?.totalPoints ?? 0;
-  },
+  getMemberPoints: (memberId) => get().stats[memberId]?.totalPoints ?? 0,
 
-  getMemberStats: (memberId) => {
-    return get().stats[memberId] ?? createEmpty(memberId);
-  },
+  getMemberStats: (memberId) => get().stats[memberId] ?? createEmpty(memberId),
 
   addBadge: (memberId, badgeId) => {
     const stats = { ...get().stats };
@@ -82,7 +101,7 @@ export const useFinStatsStore = create<FinStatsState>((set, get) => ({
       ms.badges = badges;
       stats[memberId] = ms;
       set({ stats });
-      save(stats);
+      upsertStats(ms);
     }
   },
 }));

@@ -46,9 +46,9 @@ function FinGoals() {
     showToast('Meta criada!');
   }
 
-  function handleContribute(goalId: string) {
+  async function handleContribute(goalId: string) {
     if (!member || contribAmount <= 0) return;
-    const completed = addContribution(goalId, member.id as MemberId, contribAmount);
+    const completed = await addContribution(goalId, member.id as MemberId, contribAmount);
     addPoints(member.id as MemberId, 20);
     if (completed) {
       addBadge(member.id as MemberId, 'meta_atingida');
@@ -117,13 +117,10 @@ function FinGoals() {
               <div className="mt-3 flex items-center gap-2">
                 <input
                   type="text"
-                  inputMode="decimal"
-                  value={contribAmount === 0 ? '' : (contribAmount / 100).toFixed(2).replace('.', ',')}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value.replace(',', '.'));
-                    setContribAmount(isNaN(val) ? 0 : Math.round(val * 100));
-                  }}
-                  placeholder="Ex: 50,00"
+                  inputMode="numeric"
+                  value={contribAmount === 0 ? '' : String(contribAmount)}
+                  onChange={(e) => setContribAmount(Number(e.target.value.replace(/\D/g, '')))}
+                  placeholder="4990 = R$ 49,90"
                   className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-teal-500"
                 />
                 <button onClick={() => handleContribute(goal.id)} className="rounded-lg px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: '#4ECDC4' }}>

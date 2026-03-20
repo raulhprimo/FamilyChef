@@ -1,25 +1,28 @@
 import { create } from 'zustand';
+import { supabase } from '../../../lib/supabase';
 import { formatDateISO } from '../../../core/utils/dates';
 import type { MemberId } from '../../../core/constants/members';
 import type { RecurringTask, TaskInstance } from '../types';
-
-const STORAGE_KEY = '4family_home_tasks';
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function loadFromStorage(): TaskInstance[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveToStorage(tasks: TaskInstance[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+function rowToInstance(row: Record<string, unknown>): TaskInstance {
+  return {
+    id: row.id as string,
+    recurringTaskId: (row.recurring_task_id as string) ?? undefined,
+    name: row.name as string,
+    category: row.category as TaskInstance['category'],
+    assignedTo: row.assigned_to as MemberId,
+    dueDate: row.due_date as string,
+    priority: row.priority as TaskInstance['priority'],
+    done: row.done as boolean,
+    doneAt: (row.done_at as string) ?? undefined,
+    doneBy: (row.done_by as MemberId) ?? undefined,
+    lateByDays: (row.late_by_days as number) ?? undefined,
+    comment: (row.comment as string) ?? undefined,
+  };
 }
 
 function getWeekNumber(date: Date): number {
@@ -31,62 +34,67 @@ function getWeekNumber(date: Date): number {
 }
 
 function shouldGenerateForDay(task: RecurringTask, date: Date): boolean {
-  const dayOfWeek = date.getDay(); // 0=dom, 1=seg...
-
+  const dayOfWeek = date.getDay();
   switch (task.frequency) {
-    case 'daily':
-      return true;
-    case 'weekly':
-      return (task.weekDays ?? []).includes(dayOfWeek);
-    case 'biweekly': {
-      const weekNum = getWeekNumber(date);
-      return weekNum % 2 === 0 && (task.weekDays ?? []).includes(dayOfWeek);
-    }
-    case 'monthly':
-      return date.getDate() === (task.dayOfMonth ?? 1);
-    case 'once':
-      return false; // avulsas são criadas manualmente
-    default:
-      return false;
+    case 'daily': return true;
+    case 'weekly': return (task.weekDays ?? []).includes(dayOfWeek);
+    case 'biweekly': return getWeekNumber(date) % 2 === 0 && (task.weekDays ?? []).includes(dayOfWeek);
+    case 'monthly': return date.getDate() === (task.dayOfMonth ?? 1);
+    case 'once': return false;
+    default: return false;
   }
 }
 
-export function generateInstances(
-  recurringTasks: RecurringTask[],
-  existingInstances: TaskInstance[],
-): TaskInstance[] {
-  const newInstances: TaskInstance[] = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+type TasksState = {
+  instances: TaskInstance[];
+  loading: boolean;
+  fetchInstances: () => Promise<void>;
+  generateFromRecurring: (recurringTasks: RecurringTask[]) => Promise<void>;
+  addInstance: (task: Omit<TaskInstance, 'id'>) => Promise<void>;
+  toggleDone: (id: string, doneBy: MemberId) => Promise<void>;
+  updateInstance: (id: string, data: Partial<TaskInstance>) => Promise<void>;
+  deleteInstance: (id: string) => Promise<void>;
+};
 
-  const activeTasks = recurringTasks.filter((t) => t.active);
+export const useTasksStore = create<TasksState>((set, get) => ({
+  instances: [],
+  loading: true,
 
-  for (const task of activeTasks) {
-    for (let offset = 0; offset < 7; offset++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + offset);
-      const dateISO = formatDateISO(date);
+  fetchInstances: async () => {
+    const { data, error } = await supabase
+      .from('home_task_instances')
+      .select('*')
+      .order('due_date', { ascending: true });
 
-      if (!shouldGenerateForDay(task, date)) continue;
+    if (!error && data) {
+      set({ instances: data.map(rowToInstance), loading: false });
+    } else {
+      set({ loading: false });
+    }
+  },
 
-      for (const memberId of task.assignedTo) {
-        const exists = existingInstances.some(
-          (inst) =>
-            inst.recurringTaskId === task.id &&
-            inst.dueDate === dateISO &&
-            inst.assignedTo === memberId,
-        );
+  generateFromRecurring: async (recurringTasks) => {
+    const existing = get().instances;
+    const newInstances: TaskInstance[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const activeTasks = recurringTasks.filter((t) => t.active);
 
-        if (!exists) {
-          // Also check newInstances to avoid duplicates within this generation
-          const alreadyGenerated = newInstances.some(
-            (inst) =>
-              inst.recurringTaskId === task.id &&
-              inst.dueDate === dateISO &&
-              inst.assignedTo === memberId,
+    for (const task of activeTasks) {
+      for (let offset = 0; offset < 7; offset++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + offset);
+        const dateISO = formatDateISO(date);
+        if (!shouldGenerateForDay(task, date)) continue;
+
+        for (const memberId of task.assignedTo) {
+          const exists = existing.some(
+            (inst) => inst.recurringTaskId === task.id && inst.dueDate === dateISO && inst.assignedTo === memberId,
+          ) || newInstances.some(
+            (inst) => inst.recurringTaskId === task.id && inst.dueDate === dateISO && inst.assignedTo === memberId,
           );
 
-          if (!alreadyGenerated) {
+          if (!exists) {
             newInstances.push({
               id: generateId(),
               recurringTaskId: task.id,
@@ -101,79 +109,92 @@ export function generateInstances(
         }
       }
     }
-  }
 
-  return newInstances;
-}
-
-type TasksState = {
-  instances: TaskInstance[];
-  generateFromRecurring: (recurringTasks: RecurringTask[]) => void;
-  addInstance: (task: Omit<TaskInstance, 'id'>) => void;
-  toggleDone: (id: string, doneBy: MemberId) => void;
-  updateInstance: (id: string, data: Partial<TaskInstance>) => void;
-  deleteInstance: (id: string) => void;
-};
-
-export const useTasksStore = create<TasksState>((set, get) => ({
-  instances: loadFromStorage(),
-
-  generateFromRecurring: (recurringTasks) => {
-    const existing = get().instances;
-    const newInstances = generateInstances(recurringTasks, existing);
     if (newInstances.length > 0) {
-      const updated = [...existing, ...newInstances];
-      set({ instances: updated });
-      saveToStorage(updated);
+      set((s) => ({ instances: [...s.instances, ...newInstances] }));
+
+      const rows = newInstances.map((inst) => ({
+        id: inst.id,
+        recurring_task_id: inst.recurringTaskId ?? null,
+        name: inst.name,
+        category: inst.category,
+        assigned_to: inst.assignedTo,
+        due_date: inst.dueDate,
+        priority: inst.priority,
+        done: false,
+      }));
+      await supabase.from('home_task_instances').insert(rows);
     }
   },
 
-  addInstance: (task) => {
-    const newTask: TaskInstance = {
-      ...task,
-      id: generateId(),
-    };
-    const updated = [...get().instances, newTask];
-    set({ instances: updated });
-    saveToStorage(updated);
-  },
+  addInstance: async (task) => {
+    const id = generateId();
+    const newTask: TaskInstance = { ...task, id };
+    set((s) => ({ instances: [...s.instances, newTask] }));
 
-  toggleDone: (id, doneBy) => {
-    const todayISO = formatDateISO(new Date());
-    const updated = get().instances.map((t) => {
-      if (t.id !== id) return t;
-      if (t.done) {
-        // Undo
-        return { ...t, done: false, doneAt: undefined, doneBy: undefined, lateByDays: undefined };
-      }
-      // Mark done
-      const dueDate = new Date(t.dueDate + 'T00:00:00');
-      const today = new Date(todayISO + 'T00:00:00');
-      const diffMs = today.getTime() - dueDate.getTime();
-      const lateByDays = Math.max(0, Math.round(diffMs / 86_400_000));
-      return {
-        ...t,
-        done: true,
-        doneAt: new Date().toISOString(),
-        doneBy,
-        lateByDays,
-      };
+    await supabase.from('home_task_instances').insert({
+      id,
+      recurring_task_id: task.recurringTaskId ?? null,
+      name: task.name,
+      category: task.category,
+      assigned_to: task.assignedTo,
+      due_date: task.dueDate,
+      priority: task.priority,
+      done: task.done,
+      done_at: task.doneAt ?? null,
+      done_by: task.doneBy ?? null,
+      comment: task.comment ?? null,
     });
-    set({ instances: updated });
-    saveToStorage(updated);
   },
 
-  updateInstance: (id, data) => {
-    const updated = get().instances.map((t) =>
-      t.id === id ? { ...t, ...data } : t,
-    );
-    set({ instances: updated });
-    saveToStorage(updated);
+  toggleDone: async (id, doneBy) => {
+    const todayISO = formatDateISO(new Date());
+    let lateByDays: number | undefined;
+
+    set((s) => ({
+      instances: s.instances.map((t) => {
+        if (t.id !== id) return t;
+        if (t.done) {
+          return { ...t, done: false, doneAt: undefined, doneBy: undefined, lateByDays: undefined };
+        }
+        const dueDate = new Date(t.dueDate + 'T00:00:00');
+        const today = new Date(todayISO + 'T00:00:00');
+        const diffMs = today.getTime() - dueDate.getTime();
+        lateByDays = Math.max(0, Math.round(diffMs / 86_400_000));
+        return { ...t, done: true, doneAt: new Date().toISOString(), doneBy, lateByDays };
+      }),
+    }));
+
+    const task = get().instances.find((t) => t.id === id);
+    if (task) {
+      await supabase.from('home_task_instances').update({
+        done: task.done,
+        done_at: task.doneAt ?? null,
+        done_by: task.doneBy ?? null,
+        late_by_days: task.lateByDays ?? null,
+      }).eq('id', id);
+    }
   },
 
-  deleteInstance: (id) => {
-    const updated = get().instances.filter((t) => t.id !== id);
-    set({ instances: updated });
-    saveToStorage(updated);
+  updateInstance: async (id, data) => {
+    set((s) => ({
+      instances: s.instances.map((t) => (t.id === id ? { ...t, ...data } : t)),
+    }));
+
+    const update: Record<string, unknown> = {};
+    if (data.name !== undefined) update.name = data.name;
+    if (data.category !== undefined) update.category = data.category;
+    if (data.assignedTo !== undefined) update.assigned_to = data.assignedTo;
+    if (data.dueDate !== undefined) update.due_date = data.dueDate;
+    if (data.priority !== undefined) update.priority = data.priority;
+    if (data.done !== undefined) update.done = data.done;
+    if (data.comment !== undefined) update.comment = data.comment;
+
+    await supabase.from('home_task_instances').update(update).eq('id', id);
+  },
+
+  deleteInstance: async (id) => {
+    set((s) => ({ instances: s.instances.filter((t) => t.id !== id) }));
+    await supabase.from('home_task_instances').delete().eq('id', id);
   },
 }));

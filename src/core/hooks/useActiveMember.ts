@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { FAMILY_MEMBERS } from '../constants/members';
 
-const STORAGE_KEY = 'familychef_active_member';
+const STORAGE_KEY = '4family_active_member';
 
 type ActiveMember = typeof FAMILY_MEMBERS[number] | null;
 

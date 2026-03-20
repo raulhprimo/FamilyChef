@@ -1,56 +1,103 @@
 import { create } from 'zustand';
+import { supabase } from '../../../lib/supabase';
 import type { MemberId } from '../../../core/constants/members';
 import type { Goal } from '../types';
-
-const STORAGE_KEY = '4family_fin_goals';
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function load(): Goal[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function save(goals: Goal[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(goals));
+function rowToGoal(row: Record<string, unknown>, contributions: Goal['contributions']): Goal {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    targetAmount: row.target_amount as number,
+    currentAmount: row.current_amount as number,
+    deadline: row.deadline as string,
+    color: row.color as string,
+    completed: row.completed as boolean,
+    contributions,
+  };
 }
 
 type GoalsState = {
   goals: Goal[];
-  addGoal: (data: Omit<Goal, 'id' | 'contributions' | 'currentAmount' | 'completed'>) => void;
-  updateGoal: (id: string, data: Partial<Goal>) => void;
-  deleteGoal: (id: string) => void;
-  addContribution: (goalId: string, memberId: MemberId, amount: number) => boolean; // returns true if goal completed
+  loading: boolean;
+  fetchGoals: () => Promise<void>;
+  addGoal: (data: Omit<Goal, 'id' | 'contributions' | 'currentAmount' | 'completed'>) => Promise<void>;
+  updateGoal: (id: string, data: Partial<Goal>) => Promise<void>;
+  deleteGoal: (id: string) => Promise<void>;
+  addContribution: (goalId: string, memberId: MemberId, amount: number) => Promise<boolean>;
   getGoalProgress: (goalId: string) => { percent: number; remaining: number; daysLeft: number };
 };
 
 export const useGoalsStore = create<GoalsState>((set, get) => ({
-  goals: load(),
+  goals: [],
+  loading: true,
 
-  addGoal: (data) => {
-    const goal: Goal = { ...data, id: generateId(), contributions: [], currentAmount: 0, completed: false };
-    const updated = [...get().goals, goal];
-    set({ goals: updated });
-    save(updated);
+  fetchGoals: async () => {
+    const { data: goalsData, error: goalsErr } = await supabase
+      .from('fin_goals')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    const { data: contribData } = await supabase
+      .from('fin_goal_contributions')
+      .select('*')
+      .order('date', { ascending: true });
+
+    if (!goalsErr && goalsData) {
+      const contribsByGoal: Record<string, Goal['contributions']> = {};
+      for (const c of contribData ?? []) {
+        const goalId = c.goal_id as string;
+        if (!contribsByGoal[goalId]) contribsByGoal[goalId] = [];
+        contribsByGoal[goalId].push({
+          memberId: c.member_id as MemberId,
+          amount: c.amount as number,
+          date: c.date as string,
+        });
+      }
+
+      const goals = goalsData.map((row) =>
+        rowToGoal(row, contribsByGoal[row.id as string] ?? []),
+      );
+      set({ goals, loading: false });
+    } else {
+      set({ loading: false });
+    }
   },
 
-  updateGoal: (id, data) => {
-    const updated = get().goals.map((g) => (g.id === id ? { ...g, ...data } : g));
-    set({ goals: updated });
-    save(updated);
+  addGoal: async (data) => {
+    const id = generateId();
+    const goal: Goal = { ...data, id, contributions: [], currentAmount: 0, completed: false };
+    set((s) => ({ goals: [...s.goals, goal] }));
+
+    await supabase.from('fin_goals').insert({
+      id,
+      name: data.name,
+      target_amount: data.targetAmount,
+      current_amount: 0,
+      deadline: data.deadline,
+      color: data.color,
+      completed: false,
+    });
   },
 
-  deleteGoal: (id) => {
-    const updated = get().goals.filter((g) => g.id !== id);
-    set({ goals: updated });
-    save(updated);
+  updateGoal: async (id, data) => {
+    set((s) => ({ goals: s.goals.map((g) => (g.id === id ? { ...g, ...data } : g)) }));
+    const update: Record<string, unknown> = {};
+    if (data.name !== undefined) update.name = data.name;
+    if (data.deadline !== undefined) update.deadline = data.deadline;
+    if (data.color !== undefined) update.color = data.color;
+    await supabase.from('fin_goals').update(update).eq('id', id);
   },
 
-  addContribution: (goalId, memberId, amount) => {
+  deleteGoal: async (id) => {
+    set((s) => ({ goals: s.goals.filter((g) => g.id !== id) }));
+    await supabase.from('fin_goals').delete().eq('id', id);
+  },
+
+  addContribution: async (goalId, memberId, amount) => {
     const goals = get().goals.map((g) => {
       if (g.id !== goalId) return g;
       const contributions = [...g.contributions, { memberId, amount, date: new Date().toISOString().slice(0, 10) }];
@@ -59,8 +106,21 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
       return { ...g, contributions, currentAmount, completed };
     });
     set({ goals });
-    save(goals);
+
     const goal = goals.find((g) => g.id === goalId);
+
+    await supabase.from('fin_goal_contributions').insert({
+      goal_id: goalId,
+      member_id: memberId,
+      amount,
+      date: new Date().toISOString().slice(0, 10),
+    });
+
+    await supabase.from('fin_goals').update({
+      current_amount: goal?.currentAmount ?? 0,
+      completed: goal?.completed ?? false,
+    }).eq('id', goalId);
+
     return goal?.completed ?? false;
   },
 
