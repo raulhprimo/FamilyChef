@@ -91,8 +91,10 @@ export const useHomeStatsStore = create<HomeStatsState>((set, get) => ({
   },
 
   recordTaskDone: (task) => {
+    if (!task.assignedTo) return 0; // unassigned tasks don't earn points
+    const memberId = task.assignedTo;
     const stats = { ...get().stats };
-    const ms = { ...(stats[task.assignedTo] ?? createEmpty(task.assignedTo)) };
+    const ms = { ...(stats[memberId] ?? createEmpty(memberId)) };
     const points = calcPoints(task);
     ms.totalPoints += points;
 
@@ -124,15 +126,17 @@ export const useHomeStatsStore = create<HomeStatsState>((set, get) => ({
     if (ms.totalPoints >= 100 && !badges.includes('centenario')) badges.push('centenario');
     ms.badges = badges;
 
-    stats[task.assignedTo] = ms;
+    stats[memberId] = ms;
     set({ stats });
     upsertStats(ms);
     return points;
   },
 
   recordTaskUndone: (task) => {
+    if (!task.assignedTo) return;
+    const memberId = task.assignedTo;
     const stats = { ...get().stats };
-    const ms = { ...(stats[task.assignedTo] ?? createEmpty(task.assignedTo)) };
+    const ms = { ...(stats[memberId] ?? createEmpty(memberId)) };
     const points = calcPoints(task);
     ms.totalPoints = Math.max(0, ms.totalPoints - points);
 
@@ -141,7 +145,7 @@ export const useHomeStatsStore = create<HomeStatsState>((set, get) => ({
     wp[weekId] = Math.max(0, (wp[weekId] ?? 0) - points);
     ms.weeklyPoints = wp;
 
-    stats[task.assignedTo] = ms;
+    stats[memberId] = ms;
     set({ stats });
     upsertStats(ms);
   },

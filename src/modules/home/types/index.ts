@@ -21,7 +21,7 @@ export type TaskInstance = {
   recurringTaskId?: string; // se gerada de recorrente
   name: string;
   category: TaskCategory;
-  assignedTo: MemberId;
+  assignedTo: MemberId | null; // null = sem responsável (disponível para qualquer um)
   dueDate: string;        // ISO date "YYYY-MM-DD"
   priority: TaskPriority;
   done: boolean;

@@ -195,11 +195,11 @@ function FinHome() {
       {/* FAB */}
       <button
         onClick={() => setFormOpen(true)}
-        className="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-110 lg:bottom-6"
+        className="fixed bottom-[5.5rem] right-20 z-30 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-110 lg:bottom-6 lg:right-20"
         style={{ backgroundColor: '#4ECDC4' }}
         aria-label="Adicionar gasto"
       >
-        <HugeiconsIcon icon={Add01Icon} size={24} color="#fff" />
+        <HugeiconsIcon icon={Add01Icon} size={20} color="#fff" />
       </button>
 
       <ExpenseForm isOpen={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} />

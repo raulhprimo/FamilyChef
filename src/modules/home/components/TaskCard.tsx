@@ -20,9 +20,11 @@ type TaskCardProps = {
   onToggle: (id: string) => void;
   onEdit?: (task: TaskInstance) => void;
   onDelete?: (id: string) => void;
+  onClaim?: (id: string) => void;  // "Pegar pra mim"
 };
 
-function TaskCard({ task, onToggle, onEdit, onDelete }: TaskCardProps) {
+function TaskCard({ task, onToggle, onEdit, onDelete, onClaim }: TaskCardProps) {
+  const isUnassigned = !task.assignedTo;
   const member = FAMILY_MEMBERS.find((m) => m.id === task.assignedTo);
   const todayISO = formatDateISO(new Date());
   const isLate = !task.done && task.dueDate < todayISO;
@@ -167,14 +169,28 @@ function TaskCard({ task, onToggle, onEdit, onDelete }: TaskCardProps) {
               <Emoji name={cat.emoji} width={12} />
               {cat.label}
             </span>
-            {member && (
+            {member ? (
               <span className="flex items-center gap-0.5">
                 <Emoji name={member.emoji} width={12} />
                 {member.name}
               </span>
+            ) : (
+              <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                Disponível
+              </span>
             )}
           </div>
         </div>
+
+        {/* Claim button for unassigned tasks */}
+        {isUnassigned && !task.done && onClaim && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onClaim(task.id); }}
+            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-amber-100 transition-colors hover:bg-amber-200"
+          >
+            Pegar
+          </button>
+        )}
       </div>
     </div>
   );

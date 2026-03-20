@@ -25,7 +25,7 @@ type TaskModalProps = {
 function TaskModal({ isOpen, onClose, onSave, onDelete, existingTask }: TaskModalProps) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<TaskCategory>('limpeza');
-  const [assignedTo, setAssignedTo] = useState<MemberId | ''>('');
+  const [assignedTo, setAssignedTo] = useState<MemberId | null>(null);
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('normal');
   const [visible, setVisible] = useState(false);
@@ -36,7 +36,7 @@ function TaskModal({ isOpen, onClose, onSave, onDelete, existingTask }: TaskModa
     if (isOpen) {
       setName(existingTask?.name ?? '');
       setCategory(existingTask?.category ?? 'limpeza');
-      setAssignedTo(existingTask?.assignedTo ?? '');
+      setAssignedTo(existingTask?.assignedTo ?? null);
       setDueDate(existingTask?.dueDate ?? formatDateISO(new Date()));
       setPriority(existingTask?.priority ?? 'normal');
       setConfirmDelete(false);
@@ -50,14 +50,18 @@ function TaskModal({ isOpen, onClose, onSave, onDelete, existingTask }: TaskModa
   if (!isOpen) return null;
 
   const isEditing = !!existingTask;
-  const canSave = name.trim().length > 0 && assignedTo !== '';
+  const canSave = name.trim().length > 0;
+
+  function toggleMember(memberId: MemberId) {
+    setAssignedTo((prev) => (prev === memberId ? null : memberId));
+  }
 
   function handleSave() {
     if (!canSave) return;
     onSave({
       name: name.trim(),
       category,
-      assignedTo: assignedTo as MemberId,
+      assignedTo,
       dueDate,
       priority,
       done: existingTask?.done ?? false,
@@ -143,12 +147,14 @@ function TaskModal({ isOpen, onClose, onSave, onDelete, existingTask }: TaskModa
 
         {/* Assigned to */}
         <div className="mb-4">
-          <label className="mb-1.5 block text-sm font-semibold text-text-muted">Atribuir a</label>
+          <label className="mb-1.5 block text-sm font-semibold text-text-muted">
+            Atribuir a <span className="font-normal text-text-muted">(opcional)</span>
+          </label>
           <div className="flex flex-wrap gap-2">
             {FAMILY_MEMBERS.map((member) => (
               <button
                 key={member.id}
-                onClick={() => setAssignedTo(member.id as MemberId)}
+                onClick={() => toggleMember(member.id as MemberId)}
                 className={`flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-semibold transition-all ${
                   assignedTo === member.id
                     ? 'shadow-sm'
@@ -165,6 +171,11 @@ function TaskModal({ isOpen, onClose, onSave, onDelete, existingTask }: TaskModa
               </button>
             ))}
           </div>
+          {!assignedTo && (
+            <p className="mt-1.5 text-xs text-amber-600">
+              Sem responsável — qualquer membro pode pegar essa tarefa
+            </p>
+          )}
         </div>
 
         {/* Date */}

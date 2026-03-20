@@ -84,8 +84,13 @@ function Today() {
     [todayTasks, member],
   );
 
+  const unassignedTasks = useMemo(
+    () => todayTasks.filter((t) => !t.assignedTo),
+    [todayTasks],
+  );
+
   const familyTasks = useMemo(
-    () => (member ? todayTasks.filter((t) => t.assignedTo !== member.id) : todayTasks),
+    () => (member ? todayTasks.filter((t) => t.assignedTo && t.assignedTo !== member.id) : todayTasks.filter((t) => t.assignedTo)),
     [todayTasks, member],
   );
 
@@ -135,6 +140,12 @@ function Today() {
       recordTaskUndone(task);
     }
   }, [member, instances, toggleDone, todayISO, recordTaskDone, recordTaskUndone, showToast, getMemberStreak]);
+
+  function handleClaim(id: string) {
+    if (!member) return;
+    useTasksStore.getState().updateInstance(id, { assignedTo: member.id as MemberId });
+    showToast(`Tarefa atribuída para ${member.name}!`);
+  }
 
   function handleSaveNew(task: Omit<TaskInstance, 'id'>) {
     addInstance(task);
@@ -235,6 +246,28 @@ function Today() {
         </section>
       )}
 
+      {/* Unassigned / available tasks */}
+      {unassignedTasks.length > 0 && (
+        <section className="mb-6">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-amber-700">
+            <Emoji name="raising-hand" width={16} />
+            Tarefas disponíveis ({unassignedTasks.length})
+          </h3>
+          <div className="flex flex-col gap-2">
+            {unassignedTasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onToggle={handleToggle}
+                onEdit={(t) => { setEditingTask(t); setModalOpen(true); }}
+                onDelete={(id) => deleteInstance(id)}
+                onClaim={handleClaim}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Family tasks */}
       {familyTasks.length > 0 && (
         <section className="mb-6">
@@ -304,11 +337,11 @@ function Today() {
       {/* FAB */}
       <button
         onClick={() => { setEditingTask(undefined); setModalOpen(true); }}
-        className="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-110 lg:bottom-6"
+        className="fixed bottom-[5.5rem] right-20 z-30 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-110 lg:bottom-6 lg:right-20"
         style={{ backgroundColor: '#F9A825' }}
         aria-label="Adicionar tarefa"
       >
-        <HugeiconsIcon icon={Add01Icon} size={24} color="#fff" />
+        <HugeiconsIcon icon={Add01Icon} size={20} color="#fff" />
       </button>
 
       <TaskModal
