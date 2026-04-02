@@ -1,4 +1,4 @@
-const CACHE_NAME = 'familychef-v1';
+const CACHE_NAME = '4family-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -75,5 +75,37 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => caches.match(request))
+  );
+});
+
+// ─── Push Notifications ─────────────────────────────────────────────────────
+self.addEventListener('push', (event) => {
+  const data = event.data?.json() ?? {};
+  const title = data.title ?? '4Family';
+  const options = {
+    body: data.body ?? '',
+    icon: '/icon-192.svg',
+    badge: '/icon-192.svg',
+    data: { url: data.url ?? '/' },
+    tag: data.tag ?? 'default',
+    renotify: !!data.tag,
+    vibrate: [200, 100, 200],
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Click on notification → open or focus the app at the right route
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url ?? '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (new URL(client.url).pathname === url && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      return clients.openWindow(url);
+    })
   );
 });

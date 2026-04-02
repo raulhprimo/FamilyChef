@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { getFamilyId } from '../../../core/hooks/useFamilyId';
 import type { MemberId } from '../../../core/constants/members';
 import type { Expense, Debt, ExpenseCategory, MonthSummary } from '../types';
 import { FIN_MEMBER_IDS } from '../types';
@@ -96,10 +97,10 @@ export const useExpensesStore = create<ExpensesState>((set, get) => ({
   loading: true,
 
   fetchExpenses: async () => {
-    const { data, error } = await supabase
-      .from('fin_expenses')
-      .select('*')
-      .order('date', { ascending: false });
+    const familyId = getFamilyId();
+    let query = supabase.from('fin_expenses').select('*');
+    if (familyId) query = query.eq('family_id', familyId);
+    const { data, error } = await query.order('date', { ascending: false });
 
     if (!error && data) {
       set({ expenses: data.map(rowToExpense), loading: false });
@@ -114,6 +115,7 @@ export const useExpensesStore = create<ExpensesState>((set, get) => ({
     set((s) => ({ expenses: [...s.expenses, expense] }));
 
     await supabase.from('fin_expenses').insert({
+      family_id: getFamilyId(),
       id,
       description: data.description,
       amount: data.amount,

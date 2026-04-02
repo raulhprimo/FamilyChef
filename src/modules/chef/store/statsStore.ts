@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { getFamilyId } from '../../../core/hooks/useFamilyId';
 import { POINTS } from '../../../core/constants/points';
 import { calculateStreakBonus } from '../../../core/utils/points';
 import type { Meal, MemberStats } from '../../../core/types';
@@ -72,6 +73,7 @@ type StatsState = {
 
 async function upsertStats(memberStats: MemberStats) {
   await supabase.from('member_stats').upsert({
+    family_id: getFamilyId(),
     member_id: memberStats.memberId,
     total_points: memberStats.totalPoints,
     current_streak: memberStats.currentStreak,
@@ -87,9 +89,10 @@ export const useStatsStore = create<StatsState>((set, get) => ({
   loading: true,
 
   fetchStats: async () => {
-    const { data, error } = await supabase
-      .from('member_stats')
-      .select('*');
+    const familyId = getFamilyId();
+    let query = supabase.from('member_stats').select('*');
+    if (familyId) query = query.eq('family_id', familyId);
+    const { data, error } = await query;
 
     if (!error && data) {
       const stats: Record<string, MemberStats> = {};

@@ -1,26 +1,27 @@
-import { useSyncExternalStore } from 'react';
-import { FAMILY_MEMBERS } from '../constants/members';
+import { useFamilyStore, type FamilyMember } from '../store/familyStore';
 
-const STORAGE_KEY = '4family_active_member';
+/**
+ * Returns the currently active family member, or null if not logged in.
+ * Reads from the familyStore (which persists session to localStorage).
+ *
+ * Backward compat: also checks the old localStorage key for member slug lookup.
+ */
+export function useActiveMember(): FamilyMember | null {
+  const activeMemberId = useFamilyStore((s) => s.activeMemberId);
+  const members = useFamilyStore((s) => s.members);
 
-type ActiveMember = typeof FAMILY_MEMBERS[number] | null;
-
-function getSnapshot(): string | null {
-  return localStorage.getItem(STORAGE_KEY);
-}
-
-function subscribe(callback: () => void): () => void {
-  window.addEventListener('storage', callback);
-  return () => window.removeEventListener('storage', callback);
-}
-
-export function useActiveMember(): ActiveMember {
-  const raw = useSyncExternalStore(subscribe, getSnapshot, () => null);
-  if (!raw) return null;
-  try {
-    const { memberId } = JSON.parse(raw) as { memberId: string };
-    return FAMILY_MEMBERS.find((m) => m.id === memberId) ?? null;
-  } catch {
-    return null;
+  if (!activeMemberId) {
+    // Fallback: try old localStorage format
+    try {
+      const raw = localStorage.getItem('4family_active_member');
+      if (!raw) return null;
+      const { memberId } = JSON.parse(raw) as { memberId: string };
+      // memberId here is a slug in old format
+      return members.find((m) => m.slug === memberId || m.id === memberId) ?? null;
+    } catch {
+      return null;
+    }
   }
+
+  return members.find((m) => m.id === activeMemberId || m.slug === activeMemberId) ?? null;
 }

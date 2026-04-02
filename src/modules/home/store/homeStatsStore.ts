@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { getFamilyId } from '../../../core/hooks/useFamilyId';
 import { formatDateISO, getWeekId } from '../../../core/utils/dates';
 import type { MemberId } from '../../../core/constants/members';
 import type { TaskInstance } from '../types';
@@ -50,6 +51,7 @@ function rowToStats(row: Record<string, unknown>): HomeStats {
 
 async function upsertStats(ms: HomeStats) {
   await supabase.from('home_stats').upsert({
+    family_id: getFamilyId(),
     member_id: ms.memberId,
     total_points: ms.totalPoints,
     current_streak: ms.currentStreak,
@@ -77,7 +79,10 @@ export const useHomeStatsStore = create<HomeStatsState>((set, get) => ({
   loading: true,
 
   fetchHomeStats: async () => {
-    const { data, error } = await supabase.from('home_stats').select('*');
+    const familyId = getFamilyId();
+    let query = supabase.from('home_stats').select('*');
+    if (familyId) query = query.eq('family_id', familyId);
+    const { data, error } = await query;
     if (!error && data) {
       const stats: Record<string, HomeStats> = {};
       for (const row of data) {

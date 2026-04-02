@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { getFamilyId } from '../../../core/hooks/useFamilyId';
 import type { Meal } from '../../../core/types';
 
 function generateId(): string {
@@ -38,10 +39,10 @@ export const useMealsStore = create<MealsState>((set, get) => ({
   loading: true,
 
   fetchMeals: async () => {
-    const { data, error } = await supabase
-      .from('meals')
-      .select('*')
-      .order('date', { ascending: true });
+    const familyId = getFamilyId();
+    let query = supabase.from('meals').select('*');
+    if (familyId) query = query.eq('family_id', familyId);
+    const { data, error } = await query.order('date', { ascending: true });
 
     if (!error && data) {
       set({ meals: data.map(rowToMeal), loading: false });
@@ -58,6 +59,7 @@ export const useMealsStore = create<MealsState>((set, get) => ({
 
     await supabase.from('meals').insert({
       id,
+      family_id: getFamilyId(),
       week_id: meal.weekId,
       date: meal.date,
       type: meal.type,

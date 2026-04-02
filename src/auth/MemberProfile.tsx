@@ -5,6 +5,7 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { FireIcon, Medal01Icon, Logout01Icon, ArrowLeft01Icon, Award02Icon } from '@hugeicons/core-free-icons';
 import { useActiveMember } from '../core/hooks/useActiveMember';
 import { useGlobalStatsStore } from '../core/store/globalStatsStore';
+import { useFamilyStore } from '../core/store/familyStore';
 import type { MemberId } from '../core/constants/members';
 
 const MODULE_CARDS = [
@@ -34,8 +35,8 @@ function MemberProfile() {
   if (!member || !gs) return null;
 
   function handleSwitchProfile() {
-    localStorage.removeItem('4family_active_member');
-    navigate('/');
+    useFamilyStore.getState().clearSession();
+    navigate('/login');
   }
 
   return (

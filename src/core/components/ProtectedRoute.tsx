@@ -5,7 +5,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const member = useActiveMember();
 
   if (!member) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

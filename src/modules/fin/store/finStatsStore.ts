@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { getFamilyId } from '../../../core/hooks/useFamilyId';
 import { getWeekId } from '../../../core/utils/dates';
 import type { MemberId } from '../../../core/constants/members';
 
@@ -25,6 +26,7 @@ function rowToStats(row: Record<string, unknown>): FinStats {
 
 async function upsertStats(ms: FinStats) {
   await supabase.from('fin_stats').upsert({
+    family_id: getFamilyId(),
     member_id: ms.memberId,
     total_points: ms.totalPoints,
     badges: ms.badges,
@@ -55,7 +57,10 @@ export const useFinStatsStore = create<FinStatsState>((set, get) => ({
   loading: true,
 
   fetchFinStats: async () => {
-    const { data, error } = await supabase.from('fin_stats').select('*');
+    const familyId = getFamilyId();
+    let query = supabase.from('fin_stats').select('*');
+    if (familyId) query = query.eq('family_id', familyId);
+    const { data, error } = await query;
     if (!error && data) {
       const stats: Record<string, FinStats> = {};
       for (const row of data) {

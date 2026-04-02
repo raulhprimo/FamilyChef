@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { getFamilyId } from '../../../core/hooks/useFamilyId';
 import { formatDateISO } from '../../../core/utils/dates';
 import type { MemberId } from '../../../core/constants/members';
 import type { RecurringTask, TaskInstance } from '../types';
@@ -61,10 +62,10 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   loading: true,
 
   fetchInstances: async () => {
-    const { data, error } = await supabase
-      .from('home_task_instances')
-      .select('*')
-      .order('due_date', { ascending: true });
+    const familyId = getFamilyId();
+    let query = supabase.from('home_task_instances').select('*');
+    if (familyId) query = query.eq('family_id', familyId);
+    const { data, error } = await query.order('due_date', { ascending: true });
 
     if (!error && data) {
       set({ instances: data.map(rowToInstance), loading: false });
@@ -114,6 +115,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       set((s) => ({ instances: [...s.instances, ...newInstances] }));
 
       const rows = newInstances.map((inst) => ({
+        family_id: getFamilyId(),
         id: inst.id,
         recurring_task_id: inst.recurringTaskId ?? null,
         name: inst.name,
@@ -133,6 +135,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     set((s) => ({ instances: [...s.instances, newTask] }));
 
     await supabase.from('home_task_instances').insert({
+      family_id: getFamilyId(),
       id,
       recurring_task_id: task.recurringTaskId ?? null,
       name: task.name,

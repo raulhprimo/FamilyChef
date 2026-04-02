@@ -5,6 +5,8 @@ import { CheckmarkCircle02Icon, Delete02Icon } from '@hugeicons/core-free-icons'
 import { FAMILY_MEMBERS } from '../../../core/constants/members';
 import { formatDateISO } from '../../../core/utils/dates';
 import type { TaskInstance } from '../types';
+import NudgeButton from './NudgeButton';
+import NudgeBadge from './NudgeBadge';
 
 const CATEGORY_ICONS: Record<string, { emoji: string; label: string }> = {
   limpeza: { emoji: 'broom', label: 'Limpeza' },
@@ -163,6 +165,7 @@ function TaskCard({ task, onToggle, onEdit, onDelete, onClaim }: TaskCardProps) 
             {task.recurringTaskId && !task.done && (
               <span className="text-[10px] text-text-muted">↻</span>
             )}
+            <NudgeBadge taskId={task.id} />
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-xs text-text-muted">
             <span className="flex items-center gap-1">
@@ -181,6 +184,9 @@ function TaskCard({ task, onToggle, onEdit, onDelete, onClaim }: TaskCardProps) 
             )}
           </div>
         </div>
+
+        {/* Nudge button */}
+        <NudgeButton task={task} />
 
         {/* Claim button for unassigned tasks */}
         {isUnassigned && !task.done && onClaim && (

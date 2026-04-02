@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { getFamilyId } from '../../../core/hooks/useFamilyId';
 import type { MemberId } from '../../../core/constants/members';
 import type { Goal } from '../types';
 
@@ -36,15 +37,14 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
   loading: true,
 
   fetchGoals: async () => {
-    const { data: goalsData, error: goalsErr } = await supabase
-      .from('fin_goals')
-      .select('*')
-      .order('created_at', { ascending: true });
+    const familyId = getFamilyId();
+    let goalsQuery = supabase.from('fin_goals').select('*');
+    if (familyId) goalsQuery = goalsQuery.eq('family_id', familyId);
+    const { data: goalsData, error: goalsErr } = await goalsQuery.order('created_at', { ascending: true });
 
-    const { data: contribData } = await supabase
-      .from('fin_goal_contributions')
-      .select('*')
-      .order('date', { ascending: true });
+    let contribQuery = supabase.from('fin_goal_contributions').select('*');
+    if (familyId) contribQuery = contribQuery.eq('family_id', familyId);
+    const { data: contribData } = await contribQuery.order('date', { ascending: true });
 
     if (!goalsErr && goalsData) {
       const contribsByGoal: Record<string, Goal['contributions']> = {};
@@ -73,6 +73,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
     set((s) => ({ goals: [...s.goals, goal] }));
 
     await supabase.from('fin_goals').insert({
+      family_id: getFamilyId(),
       id,
       name: data.name,
       target_amount: data.targetAmount,
@@ -110,6 +111,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
     const goal = goals.find((g) => g.id === goalId);
 
     await supabase.from('fin_goal_contributions').insert({
+      family_id: getFamilyId(),
       goal_id: goalId,
       member_id: memberId,
       amount,

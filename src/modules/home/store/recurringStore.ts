@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { getFamilyId } from '../../../core/hooks/useFamilyId';
 import type { RecurringTask } from '../types';
 import type { MemberId } from '../../../core/constants/members';
 
@@ -36,10 +37,10 @@ export const useRecurringStore = create<RecurringState>((set, get) => ({
   loading: true,
 
   fetchRecurring: async () => {
-    const { data, error } = await supabase
-      .from('home_recurring_tasks')
-      .select('*')
-      .order('created_at', { ascending: true });
+    const familyId = getFamilyId();
+    let query = supabase.from('home_recurring_tasks').select('*');
+    if (familyId) query = query.eq('family_id', familyId);
+    const { data, error } = await query.order('created_at', { ascending: true });
 
     if (!error && data) {
       set({ recurringTasks: data.map(rowToTask), loading: false });
@@ -55,6 +56,7 @@ export const useRecurringStore = create<RecurringState>((set, get) => ({
     set((s) => ({ recurringTasks: [...s.recurringTasks, newTask] }));
 
     await supabase.from('home_recurring_tasks').insert({
+      family_id: getFamilyId(),
       id,
       name: task.name,
       category: task.category,

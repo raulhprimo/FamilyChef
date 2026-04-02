@@ -2,33 +2,55 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Emoji } from 'react-apple-emojis';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { LockIcon } from '@hugeicons/core-free-icons';
-import { FAMILY_MEMBERS } from '../core/constants/members';
+import { LockIcon, Add01Icon } from '@hugeicons/core-free-icons';
+import { useFamilyStore, type FamilyMember } from '../core/store/familyStore';
 import { supabase } from '../lib/supabase';
-
-const STORAGE_KEY = '4family_active_member';
 
 function ProfileSelect() {
   const navigate = useNavigate();
-  const [selectedMember, setSelectedMember] = useState<{ id: string; name: string } | null>(null);
+  const {
+    familyId,
+    members,
+    fetchFamily,
+    fetchMembers,
+    setActiveSession,
+  } = useFamilyStore();
+
+  const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [shaking, setShaking] = useState(false);
   const [familyPassword, setFamilyPassword] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  // Load family and members on mount
   useEffect(() => {
-    supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'family_password')
-      .single()
-      .then(({ data }) => {
+    async function init() {
+      if (familyId) {
+        await Promise.all([fetchFamily(familyId), fetchMembers(familyId)]);
+        // Load family password
+        const { data } = await supabase
+          .from('families')
+          .select('password')
+          .eq('id', familyId)
+          .single();
+        if (data) setFamilyPassword(data.password);
+      } else {
+        // Fallback: try old app_settings password
+        const { data } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'family_password')
+          .single();
         if (data) setFamilyPassword(data.value);
-      });
-  }, []);
+      }
+      setLoading(false);
+    }
+    init();
+  }, [familyId, fetchFamily, fetchMembers]);
 
-  function handleSelect(memberId: string, memberName: string) {
-    setSelectedMember({ id: memberId, name: memberName });
+  function handleSelect(member: FamilyMember) {
+    setSelectedMember(member);
     setPassword('');
     setError(false);
   }
@@ -38,10 +60,15 @@ function ProfileSelect() {
     if (!selectedMember || familyPassword === null) return;
 
     if (password === familyPassword) {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ memberId: selectedMember.id, memberName: selectedMember.name }),
-      );
+      if (familyId) {
+        setActiveSession(familyId, selectedMember.id);
+      } else {
+        // Old format backward compat
+        localStorage.setItem(
+          '4family_active_member',
+          JSON.stringify({ memberId: selectedMember.slug, memberName: selectedMember.name }),
+        );
+      }
       navigate('/select-module');
     } else {
       setError(true);
@@ -56,9 +83,13 @@ function ProfileSelect() {
     setError(false);
   }
 
-  const activeMember = selectedMember
-    ? FAMILY_MEMBERS.find((m) => m.id === selectedMember.id)
-    : null;
+  if (loading) {
+    return (
+      <main className="flex min-h-svh items-center justify-center bg-bg-primary">
+        <div className="h-8 w-8 animate-spin rounded-full border-3 border-gray-200 border-t-accent" />
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-svh flex-col items-center justify-center bg-bg-primary px-4 py-12">
@@ -74,10 +105,10 @@ function ProfileSelect() {
 
       {!selectedMember ? (
         <div className="flex w-full max-w-sm flex-col gap-4">
-          {FAMILY_MEMBERS.map((member) => (
+          {members.map((member) => (
             <button
               key={member.id}
-              onClick={() => handleSelect(member.id, member.name)}
+              onClick={() => handleSelect(member)}
               className="flex items-center gap-4 rounded-2xl border border-gray-100 bg-bg-card p-5 shadow-sm transition-transform duration-150 hover:scale-[1.03] active:scale-[0.98]"
               aria-label={`Entrar como ${member.name}`}
             >
@@ -87,14 +118,24 @@ function ProfileSelect() {
               >
                 <Emoji name={member.emoji} width={36} />
               </span>
-              <span
-                className="text-lg font-bold"
-                style={{ color: member.color }}
-              >
+              <span className="text-lg font-bold" style={{ color: member.color }}>
                 {member.name}
               </span>
             </button>
           ))}
+
+          {members.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-sm text-text-muted mb-4">Nenhuma família configurada ainda.</p>
+              <button
+                onClick={() => navigate('/onboarding')}
+                className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 font-semibold text-white"
+              >
+                <HugeiconsIcon icon={Add01Icon} size={18} color="#fff" />
+                Criar minha família
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className={`w-full max-w-sm ${shaking ? 'animate-shake' : ''}`}>
@@ -102,15 +143,15 @@ function ProfileSelect() {
           <div className="mb-6 flex flex-col items-center">
             <div
               className="mb-3 flex h-20 w-20 items-center justify-center rounded-full"
-              style={{ backgroundColor: `${activeMember?.color}20` }}
+              style={{ backgroundColor: `${selectedMember.color}20` }}
             >
-              {activeMember && <Emoji name={activeMember.emoji} width={48} />}
+              <Emoji name={selectedMember.emoji} width={48} />
             </div>
             <span
               className="text-xl font-bold"
-              style={{ color: activeMember?.color }}
+              style={{ color: selectedMember.color }}
             >
-              {activeMember?.name}
+              {selectedMember.name}
             </span>
           </div>
 

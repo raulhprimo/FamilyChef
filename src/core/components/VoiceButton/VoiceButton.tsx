@@ -7,7 +7,7 @@ import { useVoiceAgentStore } from '../../store/voiceAgentStore';
 import { getAgentById, getAgentByPath } from './constants';
 import AgentSheet from './AgentSheet';
 
-const HIDDEN_PATHS = ['/', '/profile', '/ranking'];
+const HIDDEN_PATHS = ['/', '/login', '/select-module', '/profile', '/ranking'];
 
 function VoiceButton() {
   const { pathname } = useLocation();

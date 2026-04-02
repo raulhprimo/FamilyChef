@@ -6,6 +6,7 @@ import { FireIcon, Medal01Icon, Logout01Icon, LockIcon } from '@hugeicons/core-f
 import { useStatsStore } from '../store/statsStore';
 import { useMealsStore } from '../store/mealsStore';
 import { useActiveMember } from '../../../core/hooks/useActiveMember';
+import { useFamilyStore } from '../../../core/store/familyStore';
 import { ALL_BADGES } from '../../../core/constants/badges';
 import { getStreakMessage } from '../../../core/utils/points';
 
@@ -111,8 +112,8 @@ function ChefProfile() {
     : 'hoje';
 
   function handleSwitchProfile() {
-    localStorage.removeItem('4family_active_member');
-    navigate('/');
+    useFamilyStore.getState().clearSession();
+    navigate('/login');
   }
 
   return (

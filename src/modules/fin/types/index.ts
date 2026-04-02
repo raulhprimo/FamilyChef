@@ -1,9 +1,26 @@
 import type { MemberId } from '../../../core/constants/members';
+import { useFamilyStore } from '../../../core/store/familyStore';
 
 export type ExpenseCategory = 'mercado' | 'conta' | 'transporte' | 'lazer' | 'outros';
 
-/** Membros participantes do FamilyFin (Leticia fica de fora) */
-export const FIN_MEMBER_IDS: MemberId[] = ['elaine', 'felipe', 'raul'];
+/**
+ * Returns member IDs (slugs) that participate in FamilyFin.
+ * Dynamically reads from familyStore instead of hardcoding.
+ */
+export function getFinMemberIds(): string[] {
+  return useFamilyStore.getState().getFinMembers().map((m) => m.slug);
+}
+
+/** @deprecated Use getFinMemberIds() instead */
+export const FIN_MEMBER_IDS: MemberId[] = new Proxy([] as string[], {
+  get(_, prop) {
+    const ids = getFinMemberIds();
+    if (prop === Symbol.iterator) return ids[Symbol.iterator].bind(ids);
+    if (prop === 'length') return ids.length;
+    if (typeof prop === 'string' && !isNaN(Number(prop))) return ids[Number(prop)];
+    return Reflect.get(ids, prop);
+  },
+}) as MemberId[];
 
 export type Expense = {
   id: string;

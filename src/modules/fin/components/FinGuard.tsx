@@ -1,15 +1,14 @@
 import { Navigate } from 'react-router-dom';
 import { useActiveMember } from '../../../core/hooks/useActiveMember';
-import { FIN_MEMBER_IDS } from '../types';
-import type { MemberId } from '../../../core/constants/members';
 
 /**
- * Protege rotas do FamilyFin — redireciona membros não participantes.
+ * Protege rotas do FamilyFin — redireciona membros excluídos (ex: crianças).
+ * Usa o campo `excludeFin` do membro ao invés de lista hardcoded.
  */
 function FinGuard({ children }: { children: React.ReactNode }) {
   const member = useActiveMember();
 
-  if (member && !FIN_MEMBER_IDS.includes(member.id as MemberId)) {
+  if (member && member.excludeFin) {
     return <Navigate to="/select-module" replace />;
   }
 

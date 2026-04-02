@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { getFamilyId } from '../../../core/hooks/useFamilyId';
 import type { Budget, ExpenseCategory } from '../types';
 
 type BudgetStatus = {
@@ -24,7 +25,10 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
   loading: true,
 
   fetchBudgets: async () => {
-    const { data, error } = await supabase.from('fin_budgets').select('*');
+    const familyId = getFamilyId();
+    let query = supabase.from('fin_budgets').select('*');
+    if (familyId) query = query.eq('family_id', familyId);
+    const { data, error } = await query;
     if (!error && data) {
       const budgets: Budget[] = data.map((row) => ({
         category: row.category as ExpenseCategory,
@@ -43,6 +47,7 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
     set({ budgets });
 
     await supabase.from('fin_budgets').upsert({
+      family_id: getFamilyId(),
       category,
       monthly_limit: monthlyLimit,
       month,
